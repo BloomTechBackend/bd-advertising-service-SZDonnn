@@ -60,27 +60,22 @@ public class AdvertisementSelectionLogic {
     public GeneratedAdvertisement selectAdvertisement(String customerId, String marketplaceId) {
         RequestContext context = new RequestContext(customerId, marketplaceId);
         TargetingEvaluator targetingEvaluator = new TargetingEvaluator(context);
-        GeneratedAdvertisement generatedAdvertisement = new EmptyGeneratedAdvertisement();
+
         if (StringUtils.isEmpty(marketplaceId)) {
             LOG.warn("MarketplaceId cannot be null or empty. Returning empty ad.");
-        } else {
-            final List<AdvertisementContent> contents = contentDao.get(marketplaceId);
-
-            if (CollectionUtils.isNotEmpty(contents)) {
-                for (AdvertisementContent content : contents) {
-                    List<TargetingGroup> targetingGroups = targetingGroupDao.get(content.getContentId());
-                    if (CollectionUtils.isNotEmpty(targetingGroups)) {
-                        for (TargetingGroup targetingGroup : targetingGroups) {
-                            TargetingPredicateResult targetingPredicateResult = targetingEvaluator.evaluate(targetingGroup);
-                            if (targetingPredicateResult.isTrue()) {
-                                generatedAdvertisement = new GeneratedAdvertisement(content);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
+            return new EmptyGeneratedAdvertisement();
         }
+
+        final List<AdvertisementContent> contents = contentDao.get(marketplaceId);
+        GeneratedAdvertisement generatedAdvertisement = contents.stream()
+                .filter(content -> CollectionUtils.isNotEmpty(targetingGroupDao.get(content.getContentId())))
+                .flatMap(content -> targetingGroupDao.get(content.getContentId()).stream()
+                        .filter(targetingGroup -> targetingEvaluator.evaluate(targetingGroup).isTrue())
+                        .map(targetingGroup -> new GeneratedAdvertisement(content))
+                )
+                .findFirst()
+                .orElse(new EmptyGeneratedAdvertisement());
+
         return generatedAdvertisement;
     }
 }
