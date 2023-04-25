@@ -5,7 +5,6 @@ import com.amazon.ata.advertising.service.model.*;
 import com.amazon.ata.advertising.service.targeting.TargetingEvaluator;
 import com.amazon.ata.advertising.service.targeting.TargetingGroup;
 
-import com.amazon.ata.advertising.service.targeting.predicate.TargetingPredicate;
 import com.amazon.ata.advertising.service.targeting.predicate.TargetingPredicateResult;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -13,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.*;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 /**
@@ -67,15 +65,22 @@ public class AdvertisementSelectionLogic {
         }
 
         final List<AdvertisementContent> contents = contentDao.get(marketplaceId);
-        GeneratedAdvertisement generatedAdvertisement = contents.stream()
-                .filter(content -> CollectionUtils.isNotEmpty(targetingGroupDao.get(content.getContentId())))
-                .flatMap(content -> targetingGroupDao.get(content.getContentId()).stream()
-                        .filter(targetingGroup -> targetingEvaluator.evaluate(targetingGroup).isTrue())
-                        .map(targetingGroup -> new GeneratedAdvertisement(content))
-                )
-                .findFirst()
-                .orElse(new EmptyGeneratedAdvertisement());
+        if (CollectionUtils.isNotEmpty(contents)) {
+            for (AdvertisementContent content : contents) {
+                TreeMap<TargetingGroup, Double> targetingGroups =
+                        new TreeMap<>(Comparator.comparing(TargetingGroup::getClickThroughRate).reversed());
 
-        return generatedAdvertisement;
+                for (TargetingGroup targetingGroup : targetingGroupDao.get(content.getContentId())) {
+                    targetingGroups.put(targetingGroup, targetingGroup.getClickThroughRate());
+                }
+
+                TargetingPredicateResult result = targetingEvaluator.evaluate(targetingGroups.firstKey());
+                if (result.isTrue()) {
+                    return new GeneratedAdvertisement(content);
+                }
+            }
+        }
+
+        return new EmptyGeneratedAdvertisement();
     }
 }
