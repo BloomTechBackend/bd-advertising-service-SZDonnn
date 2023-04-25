@@ -65,22 +65,18 @@ public class AdvertisementSelectionLogic {
         }
 
         final List<AdvertisementContent> contents = contentDao.get(marketplaceId);
+        TreeMap<TargetingGroup, GeneratedAdvertisement> targetingGroups =
+                new TreeMap<>(Comparator.comparing(TargetingGroup::getClickThroughRate).reversed());
         if (CollectionUtils.isNotEmpty(contents)) {
             for (AdvertisementContent content : contents) {
-                TreeMap<TargetingGroup, Double> targetingGroups =
-                        new TreeMap<>(Comparator.comparing(TargetingGroup::getClickThroughRate).reversed());
-
                 for (TargetingGroup targetingGroup : targetingGroupDao.get(content.getContentId())) {
-                    targetingGroups.put(targetingGroup, targetingGroup.getClickThroughRate());
-                }
-
-                TargetingPredicateResult result = targetingEvaluator.evaluate(targetingGroups.firstKey());
-                if (result.isTrue()) {
-                    return new GeneratedAdvertisement(content);
+                    targetingGroups.put(targetingGroup, new GeneratedAdvertisement(content));
                 }
             }
         }
-
+        if (!targetingGroups.isEmpty()) {
+                return  targetingGroups.get(targetingGroups.firstKey());
+        }
         return new EmptyGeneratedAdvertisement();
     }
 }
