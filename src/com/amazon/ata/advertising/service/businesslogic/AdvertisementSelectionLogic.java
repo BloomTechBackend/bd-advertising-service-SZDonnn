@@ -70,12 +70,14 @@ public class AdvertisementSelectionLogic {
         if (CollectionUtils.isNotEmpty(contents)) {
             for (AdvertisementContent content : contents) {
                 for (TargetingGroup targetingGroup : targetingGroupDao.get(content.getContentId())) {
-                    targetingGroups.put(targetingGroup, new GeneratedAdvertisement(content));
+                    if (targetingEvaluator.evaluate(targetingGroup).isTrue()) {
+                        targetingGroups.put(targetingGroup, new GeneratedAdvertisement(content));
+                    }
                 }
             }
         }
         if (!targetingGroups.isEmpty()) {
-                return  targetingGroups.get(targetingGroups.firstKey());
+            return targetingGroups.get(targetingGroups.firstKey());
         }
         return new EmptyGeneratedAdvertisement();
     }
